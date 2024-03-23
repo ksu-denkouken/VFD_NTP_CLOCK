@@ -1,0 +1,26 @@
+body{
+    background: rgb(238, 236, 217);
+}
+
+h1{
+    font-size:250%;
+}
+
+h2{
+    margin:0cm 2cm 0cm 0cm;
+    font-size:0.75cm;
+    font: weight 600px;
+    border-style:solid;
+    border-width:0cm 0cm 0.1cm 0.5cm;
+    border-color:rgb(0, 0, 0);
+    text-indent:0.2cm;
+}
+
+h3{
+    color:rgb(238, 236, 217);
+}
+
+
+ul{
+    list-style-type: circle;
+}
