@@ -1,0 +1,43 @@
+/* --------------------------------------------------------------------
+	import
+--------------------------------------------------------------------- */
+
+@import url(common.css);	/* 共通 */
+@import url(customer.css);	/* お客様ページ */
+@import url(category.css);	/* カテゴリ*/
+@import url(goods.css);		/* 商品 */
+@import url(order.css);		/* 注文 */
+@import url(login.css);		/* ログイン */
+@import url(dropframe.css);	/* レイヤー */
+@import url(etc.css);		/* その他 */
+@import url(user.css);		/* 個別デザイン */
+@import url(userreview.css); /* カスタマーレビュー */
+@import url(quickorder.css); /* クイックオーダー */
+@import url(goodsinfo_storehouse_bgc.css); /* 商品情報ページ倉庫別色分け用 */
+@import url(ui-lightness/jquery-ui-1.8.14.custom.css); /* jQuery-UI */
+
+/* --------------------------------------------------------------------
+	definition
+--------------------------------------------------------------------- */
+
+/* for Designer */
+/* フリースペースを確認する場合このスタイルを表示させてください。 */
+
+
+.sample_tmpl_	{display:none;}
+
+/*
+.sample_tmpl_{font-size:9px; background-color:#ffff00; padding:1px; border:1px solid #ff0000; position:absolute;}
+*/
+
+
+/* ユーザーテンプレート COMMON_FOOTER.html */
+.common_footer_{
+	text-align: center;
+	padding: 25px 0 0px;
+	width: 820px;
+	background-image: url(../img/usr/foot_bg.gif);
+	background-repeat: repeat-x;
+	height: 65px;
+	margin-top: 15px;
+}

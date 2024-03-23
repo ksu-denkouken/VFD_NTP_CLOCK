@@ -1,0 +1,628 @@
+var Dom_NN4		= false;
+var Dom_NN6		= false;
+
+//Mac or Win判定
+var Dom_mac = false;
+var Dom_win = false;
+
+Dom_mac=navigator.userAgent.indexOf('Mac')!=-1;
+if(!Dom_mac)
+{
+	Dom_win = true;
+}
+
+//NN or IE判定
+var Dom_IE = false;
+var Dom_NN = false;
+
+Dom_IE= navigator.userAgent.indexOf('MSIE') != -1;
+if(!Dom_IE)
+{
+	Dom_NN= navigator.userAgent.indexOf('Mozilla') != -1;
+}
+
+if(Dom_NN)
+{
+	//NN Version判定
+	Dom_NN4= navigator.userAgent.indexOf('Mozilla/4') != -1;
+	//Netscape6.2以上の場合Dom_NN6はtrue
+	Dom_NN6= navigator.userAgent.indexOf('Netscape6') != -1;
+	//NN4.x,6.x以外のNNはNN6として処理
+	if(Dom_NN4 != true && Dom_NN6 != true)
+	{
+		Dom_NN6=true;
+	}
+}
+
+
+
+function openWin(url) {
+     window.open(url,"_blank","width=420,height=420,toolbar=no,location=no,directories=no,status=no,menubar=no,scrollbars=no,favorites=no,resizable=yes");
+}
+
+// ダブルクリックの制御
+var dblClickControl = false;
+
+function checkDblClick() {
+  if(!dblClickControl) {
+    dblClickControl = true;
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+// ダブルクリック制御をする確認ダイアログ
+function checkDblClickConfirm(msg) {
+    if(!dblClickControl && window.confirm(msg)) {
+        dblClickControl = true;
+        return true;
+    }
+    return false;
+}
+
+
+function getElement(id)
+{
+	if(document.all) return document.all(id);
+	if(document.getElementById) return document.getElementById(id);
+}
+
+//各確認チェック
+window.onload = function ()
+{
+	var npwd1 = getElement("npwd1");
+	var npwd2 = getElement("npwd2");
+	var newid1 = getElement("newid1");
+	var newid2 = getElement("newid2");
+	var mail = getElement("mail");
+	var cmail = getElement("cmail");
+	// 会員情報メールアドレスチェック
+	if(mail && cmail)
+	{
+		cmail.form.onsubmit = function() { return checkMail(mail,cmail); }
+	}
+	// 新パスワードと確認パスワードのチェック
+	if(npwd1 && npwd2)
+	{
+		npwd2.form.onsubmit = function() { return checkpass(npwd1,npwd2); }
+	}
+	// 新IDと確認IDのチェック
+		if(newid1 && newid2)
+	{
+		newid2.form.onsubmit = function() { return checkid(newid1,newid2); }
+	}
+}
+
+
+function checkMail(mail, cmail)
+{
+	if(mail.value != cmail.value)
+	{
+		alert ("メールアドレスとメールアドレス（確認）が一致しません");
+    	dblClickControl = false;
+		return false;
+	}
+	return true;
+}
+
+function checkpass(npwd1, npwd2)
+{
+	if(npwd1.value != npwd2.value)
+	{
+		alert ("入力されたパスワードと確認用パスワードが一致しません");
+		return false;
+	}
+	return true;
+}
+
+function checkid(newid1, newid2)
+{
+	if(newid1.value != newid2.value)
+	{
+		alert ("入力されたIDと確認用IDが一致しません");
+		return false;
+	}
+	return true;
+}
+
+function checkidpass(arg1,arg2)
+{
+	var arg1v = document.getElementById(arg1).value;
+	var arg2v = document.getElementById(arg2).value;
+
+	if(arg1v != "" && arg2v != "")
+		{
+		if(arg1v == arg2v)
+			{
+			alert("お客様IDとパスワードは別々のものを指定してください");
+			document.getElementById(arg2).value = "";
+			return false;
+			}
+		}
+}
+
+function checkidpass(arg1,arg2,arg3)
+{
+	var arg1v = document.getElementById(arg1).value;
+	var arg2v = document.getElementById(arg2).value;
+
+	if(arg1v != "" && arg2v != "")
+		{
+		if(arg1v == arg2v)
+			{
+			alert("お客様IDとパスワードは別々のものを指定してください");
+			document.getElementById(arg2).value = "";
+			if(arg3){document.getElementById(arg3).value = "";}
+			return false;
+			}
+		}
+
+	//■2010.10.05 [natakahashi] 確認用パスワードチェック
+	if(arg3){
+		return checkpass(document.getElementById(arg2), document.getElementById(arg3));
+	}
+}
+
+
+//アンケート用
+//ダブルクリック禁止処理
+var iPrevTime = null;
+function formSubmit() {
+	if( iPrevTime == null ) {
+		iPrevTime = 1;
+		return true;
+	} else {
+		return false;
+	}
+}
+
+//半角<->全角変換
+function StrConvert(obj, isHanToZen){
+	var str = obj.value;
+	var conv = "";
+	var map = isHanToZen ? convmap.hanMap : convmap.zenMap;
+	
+	for (var i = 0; i < str.length; i++) {
+		var tmp = "";
+		if (i < str.length - 1 ){
+			tmp = str.substring(i,i+2);	
+		}
+		if (map[tmp]) {
+			conv += map[tmp];
+			i++;
+			continue;
+		} else {
+			tmp = str.substring(i, i + 1);
+			conv += map[tmp] ? map[tmp] : tmp;
+		}
+	}
+	obj.value = conv;
+	return true;
+}
+
+//半角<->全角変換マッピングクラス
+function ConvertMaps() {
+	this.hanMap = {};
+	this.zenMap = {};
+	this.Init = function(){
+		//全角->半角マップ
+		this.zenMap = {
+			'ａ' : 'a',
+			'ｂ' : 'b',
+			'ｃ' : 'c',
+			'ｄ' : 'd',
+			'ｅ' : 'e',
+			'ｆ' : 'f',
+			'ｇ' : 'g',
+			'ｈ' : 'h',
+			'ｉ' : 'i',
+			'ｊ' : 'j',
+			'ｋ' : 'k',
+			'ｌ' : 'l',
+			'ｍ' : 'm',
+			'ｎ' : 'n',
+			'ｏ' : 'o',
+			'ｐ' : 'p',
+			'ｑ' : 'q',
+			'ｒ' : 'r',
+			'ｓ' : 's',
+			'ｔ' : 't',
+			'ｕ' : 'u',
+			'ｖ' : 'v',
+			'ｗ' : 'w',
+			'ｘ' : 'x',
+			'ｙ' : 'y',
+			'ｚ' : 'z',
+			'Ａ' : 'A',
+			'Ｂ' : 'B',
+			'Ｃ' : 'C',
+			'Ｄ' : 'D',
+			'Ｅ' : 'E',
+			'Ｆ' : 'F',
+			'Ｇ' : 'G',
+			'Ｈ' : 'H',
+			'Ｉ' : 'I',
+			'Ｊ' : 'J',
+			'Ｋ' : 'K',
+			'Ｌ' : 'L',
+			'Ｍ' : 'M',
+			'Ｎ' : 'N',
+			'Ｏ' : 'O',
+			'Ｐ' : 'P',
+			'Ｑ' : 'Q',
+			'Ｒ' : 'R',
+			'Ｓ' : 'S',
+			'Ｔ' : 'T',
+			'Ｕ' : 'U',
+			'Ｖ' : 'V',
+			'Ｗ' : 'W',
+			'Ｘ' : 'X',
+			'Ｙ' : 'Y',
+			'Ｚ' : 'Z',
+			'０' : '0',
+			'１' : '1',
+			'２' : '2',
+			'３' : '3',
+			'４' : '4',
+			'５' : '5',
+			'６' : '6',
+			'７' : '7',
+			'８' : '8',
+			'９' : '9',
+			'！' : '!',
+			'＠' : '@',
+			'＃' : '#',
+			'＄' : '$',
+			'％' : '%',
+			'＾' : '^',
+			'＆' : '&',
+			'＊' : '*',
+			'（' : '(',
+			'）' : ')',
+			'＿' : '_',
+			'＋' : '+',
+			'｜' : '|',
+			'￣' : '~',
+			'－' : '-',
+			'＝' : '=',
+			'￥' : '\\',
+			'｀' : '`',
+			'｛' : '{',
+			'｝' : '}',
+			'［' : '[',
+			'］' : ']',
+			'：' : ':',
+			'”' : '"',
+			'；' : ';',
+			'’' : '\'',
+			'＜' : '<',
+			'＞' : '>',
+			'？' : '?',
+			'，' : ',',
+			'．' : '.',
+			'／' : '/',
+			'。' : '｡',
+			'「' : '｢',
+			'」' : '｣',
+			'、' : '､',
+			'・' : '･',
+			'ヲ' : 'ｦ',
+			'ァ' : 'ｧ',
+			'ィ' : 'ｨ',
+			'ゥ' : 'ｩ',
+			'ェ' : 'ｪ',
+			'ォ' : 'ｫ',
+			'ャ' : 'ｬ',
+			'ュ' : 'ｭ',
+			'ョ' : 'ｮ',
+			'ッ' : 'ｯ',
+			'ー' : 'ｰ',
+			'ア' : 'ｱ',
+			'イ' : 'ｲ',
+			'ウ' : 'ｳ',
+			'エ' : 'ｴ',
+			'オ' : 'ｵ',
+			'カ' : 'ｶ',
+			'キ' : 'ｷ',
+			'ク' : 'ｸ',
+			'ケ' : 'ｹ',
+			'コ' : 'ｺ',
+			'サ' : 'ｻ',
+			'シ' : 'ｼ',
+			'ス' : 'ｽ',
+			'セ' : 'ｾ',
+			'ソ' : 'ｿ',
+			'タ' : 'ﾀ',
+			'チ' : 'ﾁ',
+			'ツ' : 'ﾂ',
+			'テ' : 'ﾃ',
+			'ト' : 'ﾄ',
+			'ナ' : 'ﾅ',
+			'ニ' : 'ﾆ',
+			'ヌ' : 'ﾇ',
+			'ネ' : 'ﾈ',
+			'ノ' : 'ﾉ',
+			'ハ' : 'ﾊ',
+			'ヒ' : 'ﾋ',
+			'フ' : 'ﾌ',
+			'ヘ' : 'ﾍ',
+			'ホ' : 'ﾎ',
+			'マ' : 'ﾏ',
+			'ミ' : 'ﾐ',
+			'ム' : 'ﾑ',
+			'メ' : 'ﾒ',
+			'モ' : 'ﾓ',
+			'ヤ' : 'ﾔ',
+			'ユ' : 'ﾕ',
+			'ヨ' : 'ﾖ',
+			'ラ' : 'ﾗ',
+			'リ' : 'ﾘ',
+			'ル' : 'ﾙ',
+			'レ' : 'ﾚ',
+			'ロ' : 'ﾛ',
+			'ワ' : 'ﾜ',
+			'ン' : 'ﾝ',
+			'ガ' : 'ｶﾞ',
+			'ギ' : 'ｷﾞ',
+			'グ' : 'ｸﾞ',
+			'ゲ' : 'ｹﾞ',
+			'ゴ' : 'ｺﾞ',
+			'ザ' : 'ｻﾞ',
+			'ジ' : 'ｼﾞ',
+			'ズ' : 'ｽﾞ',
+			'ゼ' : 'ｾﾞ',
+			'ゾ' : 'ｿﾞ',
+			'ダ' : 'ﾀﾞ',
+			'ヂ' : 'ﾁﾞ',
+			'ヅ' : 'ﾂﾞ',
+			'デ' : 'ﾃﾞ',
+			'ド' : 'ﾄﾞ',
+			'バ' : 'ﾊﾞ',
+			'パ' : 'ﾊﾟ',
+			'ビ' : 'ﾋﾞ',
+			'ピ' : 'ﾋﾟ',
+			'ブ' : 'ﾌﾞ',
+			'プ' : 'ﾌﾟ',
+			'ベ' : 'ﾍﾞ',
+			'ペ' : 'ﾍﾟ',
+			'ボ' : 'ﾎﾞ',
+			'ポ' : 'ﾎﾟ',
+			'ヴ' : 'ｳﾞ',
+			'゛' : 'ﾞ',
+			'゜' : 'ﾟ',
+			'　' : ' '
+		};
+		
+		//半角->全角マップ
+		for (var key in this.zenMap) {
+			if(!this.hanMap[this.zenMap[key]]){
+				this.hanMap[this.zenMap[key]] = key;
+			}
+		}
+	}
+}
+var convmap = new ConvertMaps();
+convmap.Init();
+
+
+<!--
+function MM_preloadImages() { //v3.0
+  var d=document; if(d.images){ if(!d.MM_p) d.MM_p=new Array();
+    var i,j=d.MM_p.length,a=MM_preloadImages.arguments; for(i=0; i<a.length; i++)
+    if (a[i].indexOf("#")!=0){ d.MM_p[j]=new Image; d.MM_p[j++].src=a[i];}}
+}
+
+function MM_swapImgRestore() { //v3.0
+  var i,x,a=document.MM_sr; for(i=0;a&&i<a.length&&(x=a[i])&&x.oSrc;i++) x.src=x.oSrc;
+}
+
+function MM_findObj(n, d) { //v4.01
+  var p,i,x;  if(!d) d=document; if((p=n.indexOf("?"))>0&&parent.frames.length) {
+    d=parent.frames[n.substring(p+1)].document; n=n.substring(0,p);}
+  if(!(x=d[n])&&d.all) x=d.all[n]; for (i=0;!x&&i<d.forms.length;i++) x=d.forms[i][n];
+  for(i=0;!x&&d.layers&&i<d.layers.length;i++) x=MM_findObj(n,d.layers[i].document);
+  if(!x && d.getElementById) x=d.getElementById(n); return x;
+}
+
+function MM_swapImage() { //v3.0
+  var i,j=0,x,a=MM_swapImage.arguments; document.MM_sr=new Array; for(i=0;i<(a.length-2);i+=3)
+   if ((x=MM_findObj(a[i]))!=null){document.MM_sr[j++]=x; if(!x.oSrc) x.oSrc=x.src; x.src=a[i+2];}
+}
+//-->
+
+<!--
+function MM_openBrWindow(theURL,winName,features) { //v2.0
+  window.open(theURL,winName,features);
+}
+//-->
+
+<!--
+function MM_reloadPage(init) {  //reloads the window if Nav4 resized
+  if (init==true) with (navigator) {if ((appName=="Netscape")&&(parseInt(appVersion)==4)) {
+    document.MM_pgW=innerWidth; document.MM_pgH=innerHeight; onresize=MM_reloadPage; }}
+  else if (innerWidth!=document.MM_pgW || innerHeight!=document.MM_pgH) location.reload();
+}
+MM_reloadPage(true);
+// -->
+
+function opw(url, windowname, width, height, toolbar) {
+    window.status='Loading...';
+    var t=new Date();
+    var oWin = window.open(url,windowname,'width=' + width + ',height=' + height + ',toolbar=' + toolbar + ',location=no,directories=no,scrollbars=yes,resizable=yes,status=yes');
+    if (oWin == null) { window.alert('再度クリックしてください'); return false; };
+    oWin.focus();window.self.status='';
+    return false;
+}
+
+function selectMethod(method) {
+	if (method == 1) {			//銀行振込
+		if(document.getElementById('method_dest') != null) {
+			document.getElementById('dest1office').checked = false;
+			document.getElementById('method_dest').style.display = "none";
+		}
+//		2014/10/30
+//		document.getElementById('export_0').checked = false;
+		if(document.getElementById('export_s') != null) {
+			document.getElementById('export_s').style.display = "inline";
+		}
+		if(document.getElementById('export_y') != null) {
+			document.getElementById('export_y').style.display = "inline";
+		}
+		return;
+
+	//代引き佐川対応バックアップ
+	//} else if (method == 2) {	//代引き
+	//	var total_price = document.getElementById('method_total_price').value;
+	//	var min_price = parseInt(document.getElementById('method_min_price').value);
+	//	var max_price = parseInt(document.getElementById('method_max_price').value);
+	//	var min_price2 = parseInt(document.getElementById('method_min_price2').value);
+	//	var max_price2 = parseInt(document.getElementById('method_max_price2').value);
+	//	document.getElementById('export_s').style.display = "block";
+	//	document.getElementById('export_y').style.display = "block";
+	//	if (min_price <= total_price && total_price <= max_price) {
+	//		document.getElementById('export_s').style.display = "block";
+	//	} else {
+	//		document.getElementById('export_0').checked = false;
+	//		document.getElementById('export_s').style.display = "none";
+	//	}
+	//	if (min_price2 <= total_price && total_price <= max_price2) {
+	//		//document.getElementById('export_y').style.display = "block";
+	//	} else {
+	//		document.getElementById('export_1').checked = false;
+	//		document.getElementById('export_y').style.display = "none";
+	//	}
+	} else if (method == 2) {	//代引き
+		var total_price = document.getElementById('method_total_price').value;
+		var min_price = parseInt(document.getElementById('method_min_price').value);
+		var max_price = parseInt(document.getElementById('method_max_price').value);
+		var min_price2 = parseInt(document.getElementById('method_min_price2').value);
+		var max_price2 = parseInt(document.getElementById('method_max_price2').value);
+		
+		if(document.getElementById('export_s') != null) {
+			document.getElementById('export_s').style.display = "inline";
+		}
+		if(document.getElementById('export_y') != null) {
+			document.getElementById('export_y').style.display = "inline";
+		}
+		
+		if (min_price <= total_price && total_price <= max_price) {
+			if(document.getElementById('export_s') != null) {
+				document.getElementById('export_s').style.display = "inline";
+			}
+		} else {
+			document.getElementById('export_0').checked = false;
+						if(document.getElementById('export_s') != null) {
+				document.getElementById('export_s').style.display = "none";
+			}
+		}
+		if (min_price2 <= total_price && total_price <= max_price2) {
+			if(document.getElementById('export_y') != null) {
+				document.getElementById('export_y').style.display = "inline";
+			}
+		} else {
+			document.getElementById('export_1').checked = false;
+			if(document.getElementById('export_y') != null) {
+				document.getElementById('export_y').style.display = "none";
+			}
+		}
+	} else if (method == 4) {			//クレジットカード(佐川のみ)
+		if(document.getElementById('export_s') != null) {
+			document.getElementById('export_s').style.display = "inline";
+		}
+		if(document.getElementById('export_y') != null) {
+			document.getElementById('export_y').style.display = "inline";
+		}
+	} else {
+		if(document.getElementById('export_s') != null) {
+			document.getElementById('export_s').style.display = "inline";
+		}
+		if(document.getElementById('export_y') != null) {
+			document.getElementById('export_y').style.display = "inline";
+		}
+	}
+	if (document.getElementById('export_y').style.display == "inline" && document.getElementById('export_1').checked) {
+		document.getElementById('time_spec').style.display = "none";
+		document.getElementById('time_specy').style.display = "block";
+		if(document.getElementById('method_dest') != null) {
+			document.getElementById('dest1office').checked = false;
+			document.getElementById('method_dest').style.display = "none";
+		}
+	} else {
+		document.getElementById('time_spec').style.display = "block";
+		document.getElementById('time_specy').style.display = "none";
+		if(document.getElementById('method_dest') != null) {
+			document.getElementById('method_dest').style.display = "block";
+		}
+	}
+}
+
+function selectExport(export_) {
+	if(export_ == 1) {
+		document.getElementById('time_spec').style.display = "none";
+		document.getElementById('time_specy').style.display = "block";
+		if(document.getElementById('method_dest') != null) {
+			document.getElementById('dest1office').checked = false;
+			document.getElementById('method_dest').style.display = "none";
+		}
+	} else {
+		document.getElementById('time_spec').style.display = "block";
+		document.getElementById('time_specy').style.display = "none";
+		if(document.getElementById('method_dest') != null) {
+			document.getElementById('method_dest').style.display = "block";
+		}
+	}
+}
+
+function UpdateLink(link) {
+
+ document.getElementById("imglink").href = link;
+
+}
+
+// util
+function _ecUtil() {
+    // ダブルクリック禁止処理
+    this.ignoreDblClickFlag = null;
+    
+    // ダブルクリック（連続ポスト）の制御
+    this.ignoreDblClick = function() {
+        if (this.ignoreDblClickFlag == null) {
+            this.ignoreDblClickFlag = 1;
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+    // 汎用入力チェック
+    this.confirmInputCheck = function() {
+        // パスワードチェック
+        if (jQuery('#npwd1').size() == 1 && jQuery('#npwd2').size() == 1) {
+            if (jQuery('#npwd1').val() != jQuery('#npwd2').val()) {
+                alert('入力されたパスワードと確認用パスワードが一致しません');
+                ecUtil.ignoreDblClickFlag = false;
+                return false;
+            }
+        }
+
+        // IDとPASSの不一致確認
+        if (jQuery('#oldid').size() == 1 && jQuery('#npwd1').size() == 1) {
+            if (jQuery('#oldid').val() != "" && jQuery('#npwd1').val() != "" ) {
+	            if (jQuery('#oldid').val() == jQuery('#npwd1').val()) {
+	                alert('メールアドレスと同様のパスワードは入力できません');
+	                jQuery('#npwd1').val('');
+	                jQuery('#npwd2').val('');
+	                ecUtil.ignoreDblClickFlag = false;
+	                return false;
+	            }
+			}
+	    }
+        
+        return true;
+    }
+
+}
+
+var ecUtil = new _ecUtil();
