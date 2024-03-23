@@ -1,0 +1,921 @@
+/** eコマース用共通関数 */
+const GA4Currency = 'JPY';
+
+/** items(リスト内の商品数)の送信上限                                                                     */
+/** 初期値として、GA4で取得可能な上限数である25件としています。                                             */
+/** イベント発火時に413エラーが発生しGA4にデータが送信されない場合、こちらの値を引き下げてください。           */
+/** BO環境設定およびenhanced_ecommerce_sb.jsにも同様の閾値設定があるため、変更する際はあわせてご変更ください。*/
+const items_limit = 25;
+
+var ecommerceExtCommon_GA4 = {
+    /* 決済フロー送信タグ用 */
+    checkoutTags: [],
+
+    /* 金額の整形 */
+    formatPrice: function (price) {
+        var result = price.replace(/,/g, '');
+        /* 税込価格(￥,) 抜き部分のみを抜出す */
+        result = jQuery.trim(result).split(/\r?\n/g).shift();
+        if (result.indexOf('￥') != -1) {
+            result = result.substr(1, result.length - 1);
+        } else {
+            /* 販売準備中は空 */
+            result = '';
+        }
+
+        return result;
+    },
+
+    /* 商品名、バリエーションの特殊文字をエスケープ */
+    escapeJavaScriptValue: function (value) {
+        return value.replace(/['\"]/g, function (match) {
+            return {
+                "'": "\\'",
+                '"': '\\"',
+            }[match]
+        });
+    },
+
+    /* バリエーションの整形 */
+    formatVariant: function (variant1, variant2) {
+        var result = '';
+        if (variant1 !== '' && variant2 !== '') {
+            result = '（' + variant1 + '　' + variant2 + '）';
+        } else if (variant1 !== '' || variant2 !== '') {
+            result = '（' + variant1 + variant2 + '）';
+        }
+
+        return result;
+    },
+
+    /* 商品リンククリックを送信 */
+    sendClickConversion: function (event) {
+        gtag('event', 'select_item', {
+            item_list_id: location.pathname,
+            items: [{
+                'currency': GA4Currency,
+                'item_id': event.data.itemData['id'],
+                'item_name': event.data.itemData['title'],
+                'item_brand': event.data.itemData['brand'],
+                'item_category': event.data.itemData['category1'],
+                'item_category2': event.data.itemData['category2'],
+                'item_category3': event.data.itemData['category3'],
+                'item_category4': event.data.itemData['category4'],
+                'item_variant': event.data.itemData['variant'],
+                'price': event.data.itemData['price'],
+                'index': event.data.itemData['position']
+            }],
+            'send_to': trackingcode
+        });
+    },
+
+    /* 購入ボタン押下 */
+    addCartConversion: function (event) {
+        var me = ecommerceExt_GA4;
+        me.sendAddCartConversion(event.data.itemData);
+    },
+
+    /* 商品のカート追加を送信 */
+    sendAddCartConversion: function (itemData) {
+        gtag('event', 'add_to_cart', {
+            'currency': GA4Currency,
+            'value': itemData['price'],
+            items: [{
+                'currency': GA4Currency,
+                'item_id': itemData['id'],
+                'item_name': itemData['title'],
+                'item_brand': itemData['brand'],
+                'item_category': itemData['category1'],
+                'item_category2': itemData['category2'],
+                'item_category3': itemData['category3'],
+                'item_category4': itemData['category4'],
+                'item_variant': itemData['variant'],
+                'price': itemData['price'],
+                'index': itemData['position'],
+                'quantity': itemData['qty'],
+                'location_id': location.pathname
+            }],
+            'send_to': trackingcode
+        });
+    },
+
+    /* 商品のカート削除を送信 */
+    sendDelCartConversion: function (itemData) {
+        gtag('event', 'remove_from_cart', {
+            'currency': GA4Currency,
+            'value': itemData['price'],
+            items: [{
+                'currency': GA4Currency,
+                'item_id': itemData['id'],
+                'item_name': itemData['title'],
+                'item_brand': itemData['brand'],
+                'item_category': itemData['category1'],
+                'item_category2': itemData['category2'],
+                'item_category3': itemData['category3'],
+                'item_category4': itemData['category4'],
+                'item_variant': itemData['variant'],
+                'price': itemData['price']
+            }],
+            'send_to': trackingcode
+        });
+    },
+
+    /* 商品お気に入り追加リンククリックを送信 */
+    sendBookmarkConversion: function (itemData) {
+        gtag('event', 'add_to_wishlist', {
+            currency: GA4Currency,
+            value: itemData['price'],
+            items: [{
+                'currency': GA4Currency,
+                'item_id': itemData['id'],
+                'item_name': itemData['title'],
+                'item_brand': itemData['brand'],
+                'item_category': itemData['category1'],
+                'item_category2': itemData['category2'],
+                'item_category3': itemData['category3'],
+                'item_category4': itemData['category4'],
+                'item_variant': itemData['variant'],
+                'price': itemData['price'],
+                'index': itemData['position'],
+                'quantity': itemData['qty'],
+                'location_id': location.pathname
+            }],
+            'send_to': trackingcode
+        });
+    },
+
+    /* カテゴリ、ブランドの整形 */
+    formatCodeWithName: function (code, name) {
+        var result = '';
+        if (code !== '' && name !== '') {
+            result = name + '(' + code + ')';
+        }
+        return result;
+    },
+
+    /* 決済フロー集計用のタグを出力 */
+    checkoutConversion: function () {
+        var me = ecommerceExt_GA4;
+        var url_filename = window.location.href.match('.+/(.+?)([\?#;].*)?$')[1];
+        var order_step = 0;
+        /* ページによってstepを変更する */
+        if (url_filename === 'cart.aspx') {
+            /* カートの場合 */
+            order_step = 1;
+        } else if (url_filename === 'method.aspx' || url_filename === 'select.aspx') {
+            /* 通常購入またはギフト購入の場合 */
+            order_step = 2;
+        } else if (url_filename === 'estimate.aspx') {
+            /* 注文確認の場合 */
+            order_step = 3;
+        } else {
+            return;
+        }
+
+        var count = 1,
+            list = location.pathname,
+            id = '',
+            title = '',
+            category1 = '',
+            category2 = '',
+            category3 = '',
+            category4 = '',
+            brand = '',
+            price = '',
+            variant = '',
+            price_text = '',
+            img_anchor = '',
+            cart_btn = '',
+            goods_link;
+        var carts = {},
+            /* 表示商品データ */
+            impressionDatasItems = [];
+
+        $ga4jq('.js-enhanced-ecommerce-cart-item').each(function () {
+            goods_link = $ga4jq(this).find('.js-enhanced-ecommerce-goods-name');
+
+            id = '',
+                title = '',
+                category1 = '',
+                category2 = '',
+                category3 = '',
+                category4 = '',
+                brand = '',
+                price = '',
+                variant = '',
+                price_text = '',
+                img_anchor = '',
+                cart_btn = '';
+            /* href属性のURLに、「/g/」がない場合、以降の処理をスキップ */
+            if ($ga4jq(goods_link).attr('href') == undefined || !goods_link.attr('href').match(/\/g\//)) {
+                return true;
+            }
+
+            /* href属性から商品コードを抜出す */
+            id = goods_link.attr('href').substr(0, goods_link.attr('href').length - 1).split('/').pop();
+            id = id.substr(1, id.length - 1);
+
+            /* title属性から商品名を取得 */
+            title = goods_link.attr('title');
+
+            /* 商品コード、商品名いずれかでも取得出来ない場合、以降の処理をスキップ */
+            if (id == '' || title == '') {
+                return true;
+            }
+
+            /* category、brandを取得 */
+            category1 = (goods_link.data('category1') == undefined) ? '' : goods_link.data('category1'),
+                category2 = (goods_link.data('category2') == undefined) ? '' : goods_link.data('category2'),
+                category3 = (goods_link.data('category3') == undefined) ? '' : goods_link.data('category3'),
+                category4 = (goods_link.data('category4') == undefined) ? '' : goods_link.data('category4'),
+                brand = (goods_link.data('brand') == undefined) ? '' : goods_link.data('brand');
+
+            /* 「税込価格(￥、, 抜き)」部分のみを抜出す */
+            price_text = $ga4jq(this).find('.js-enhanced-ecommerce-goods-price').text();
+            if (price_text !== '') {
+                price = ecommerceExtCommon_GA4.formatPrice(price_text);
+            }
+
+            /* サイズ・カラーを取得 */
+            if ($ga4jq(this).find('.js-enhanced-ecommerce-variation-name').text() != '') {
+
+                if ($ga4jq(this).find('.js-enhanced-ecommerce-variation-name').length = 2) {
+                    /* カート画面用 */
+                    $ga4jq(this).find('.js-enhanced-ecommerce-variation-name').each(function () {
+                        /* サイズ、カラーに分かれている場合は間にスペースを入れる */
+                        if (variant.length > 0) {
+                            variant += '　';
+                        }
+                        variant += $ga4jq(this).text();
+
+                    });
+
+                } else {
+                    variant = $ga4jq(this).find('.js-enhanced-ecommerce-variation-name').text();
+                }
+
+                /* 取得したバリエーションの先頭が「(」でなければ、「（）」で囲む */
+                if (variant.trim().lastIndexOf('（', 0) !== 0) {
+                    variant = '（' + variant + '）';
+                }
+
+            }
+
+            /* 画像に設定された詳細リンク要素を取得する */
+            if ($ga4jq(this).find('.js-enhanced-ecommerce-image').attr('href') != undefined) {
+                img_anchor = $ga4jq(this).find('.js-enhanced-ecommerce-image');
+            }
+
+            /* 購入ボタン要素を取得 */
+            if ($ga4jq(this).find('.js-enhanced-ecommerce-add-cart').attr('href') != undefined) {
+                cart_btn = $ga4jq(this).find('.js-enhanced-ecommerce-add-cart').find('img');
+            }
+
+            /* 送信用タグを作成 */
+            var impressionData = {};
+            impressionData.item_id = id;
+            impressionData.item_name = ecommerceExtCommon_GA4.escapeJavaScriptValue(title);
+            impressionData.item_brand = brand;
+            impressionData.item_category = category1;
+            if (category1 != category2) {
+                impressionData.item_category2 = category2;
+                if (category2 != category3) {
+                    impressionData.item_category3 = category3;
+                    if (category3 != category4) {
+                        impressionData.item_category4 = category4;
+                    }
+                }
+            }
+            impressionData.item_variant = ecommerceExtCommon_GA4.escapeJavaScriptValue(variant);
+            impressionData.price = price;
+            impressionData.index = count;
+
+            if(count <= items_limit){
+                impressionDatasItems.push(impressionData);
+            }
+
+            carts[count] = { 'id': id, 'title': title, 'category1': impressionData.item_category,'category2': impressionData.item_category2,'category3': impressionData.item_category3,'category4': impressionData.item_category4, 'brand': brand, 'price': price, 'variant': variant, 'position': count, 'qty': 1 };
+            
+            /* 商品リンククリックイベント設定 */
+            $ga4jq(goods_link).on('click', { itemData: carts[count] }, ecommerceExtCommon_GA4.sendClickConversion);
+
+            /* 自身と画像リンクが同一要素ではない場合、画像リンクに商品リンククリックイベント設定 */
+            if ($ga4jq(goods_link).is(img_anchor) == false) {
+                $ga4jq(img_anchor).on('click', { itemData: carts[count] }, ecommerceExtCommon_GA4.sendClickConversion);
+            }
+
+            count += 1;
+        });
+
+        $ga4jq('.js-enhanced-ecommerce-estimate-item').each(function () {
+            id = $ga4jq(this).find('.js-enhanced-ecommerce-goods').text(),
+            title = $ga4jq(this).find('.js-enhanced-ecommerce-goods-name').text(),
+            price = '',
+            variant = '',
+            qty_text = $ga4jq(this).find('.js-enhanced-ecommerce-qty').text(),
+            qty = $ga4jq.trim(qty_text),
+            price_text = '';
+
+            /* 商品コード、商品名いずれかでも取得出来ない場合、以降の処理をスキップ */
+            if (id == '' || title == '') {
+                return true;
+            }
+
+            /* 「税込価格(￥、, 抜き)」部分のみを抜出す */
+            price_text = $ga4jq(this).find('.js-enhanced-ecommerce-price').text();
+            if (price_text !== '') {
+                price = ecommerceExtCommon_GA4.formatPrice(price_text);
+            }
+
+            if (parseInt(qty) > 1 && parseInt(price) > 0) {
+                price = String(parseInt(price) / parseInt(qty));
+            }
+
+            /* サイズ・カラーを取得 */
+            if ($ga4jq(this).find('.js-enhanced-ecommerce-variation-name').text() != '') {
+
+                if ($ga4jq(this).find('.js-enhanced-ecommerce-variation-name').length = 2) {
+                    /* カート画面用 */
+                    $ga4jq(this).find('.js-enhanced-ecommerce-variation-name').each(function () {
+                        /* サイズ、カラーに分かれている場合は間にスペースを入れる */
+                        if (variant.length > 0) {
+                            variant += '　';
+                        }
+                        variant += $ga4jq(this).text();
+
+                    });
+
+                } else {
+                    variant = $ga4jq(this).find('.js-enhanced-ecommerce-variation-name').text();
+                }
+
+                /* 取得したバリエーションの先頭が「(」でなければ、「（）」で囲む */
+                if (variant.trim().lastIndexOf('（', 0) !== 0) {
+                    variant = '（' + variant + '）';
+                }
+
+            }
+        
+            carts[count] = { 'id': id, 'title': title, 'category1': '', 'category2': '', 'category3': '', 'category4': '', 'brand': '', 'price': price, 'variant': variant, 'position': count, 'qty': qty };
+            count += 1;
+
+        });
+
+        if (carts.length === 0) {
+            /* カートに商品がなければ処理終了 */
+            return;
+        }
+
+        var variant = '';
+        var checkoutItems = '';
+        var itemobj = {};
+        var categoryVal1 = '';
+        var categoryVal2 = '';
+        var categoryVal3 = '';
+        var categoryVal4 = '';
+        var valuesum = 0;
+
+        
+        for (var key in carts) {
+            itemobj = {};
+            categoryVal1 = '';
+            categoryVal2 = '';
+            categoryVal3 = '';
+            categoryVal4 = '';
+            categoryVal1 = carts[key]['category1'];
+            if (carts[key]['category1'] != carts[key]['category2']) {
+                categoryVal2 = carts[key]['category2'];
+                if (carts[key]['category2'] != carts[key]['category3']) {
+                    categoryVal3 = carts[key]['category3'];
+                    if (carts[key]['category3'] != carts[key]['category4']) {
+                        categoryVal4 = carts[key]['category4'];
+                    }
+                }
+            }
+
+            /* バリエーション取得 */
+            variant = me.formatVariant(carts[key]['variation_name1'], carts[key]['variation_name2']);
+
+            /* 決済フロー用商品情報タグ作成 */
+            itemobj.item_id = carts[key]['id'];
+            itemobj.item_name = me.escapeJavaScriptValue(carts[key]['title']);
+            itemobj.item_brand = carts[key]['brand'];
+            itemobj.item_category = categoryVal1;
+            itemobj.item_category2 = (categoryVal2 == undefined) ? '' : categoryVal2;
+            itemobj.item_category3 = (categoryVal3 == undefined) ? '' : categoryVal3;
+            itemobj.item_category4 = (categoryVal4 == undefined) ? '' : categoryVal4;
+            itemobj.item_variant = me.escapeJavaScriptValue(carts[key]['variant']);
+            itemobj.price = carts[key]['price'];
+            itemobj.quantity = carts[key]['qty'];
+            itemobj.currency = GA4Currency;
+
+            me.checkoutTags.push(itemobj);
+            valuesum += (parseInt(carts[key]['price']) * parseInt(carts[key]['qty']));
+
+            if(key >= items_limit){
+                break;
+            }
+        }
+
+        if (me.checkoutTags.length > 0) {
+            var method_name = '';
+            if (order_step === 1) {
+                gtag('event', 'view_cart', {
+                    currency: GA4Currency,
+                    value: valuesum,
+                    items: me.checkoutTags,
+                    'send_to': trackingcode
+                });
+            }
+
+            if (order_step === 3) {
+                method_name = ($ga4jq('.js-enhanced-ecommerce-method-name').text() == undefined) ? '' : $ga4jq('.js-enhanced-ecommerce-method-name').text();
+                gtag('event', 'add_payment_info', {
+                    currency: GA4Currency,
+                    value: valuesum,
+                    payment_type: method_name,
+                    items: me.checkoutTags,
+                    'send_to': trackingcode
+                });
+            }
+
+            gtag('event', 'begin_checkout', {
+                currency: GA4Currency,
+                value: valuesum,
+                items: me.checkoutTags,
+                'send_to': trackingcode
+            });
+
+        }
+    }
+};
+
+ecommerceExtCommon_GA4.mixin_obj = function (srcObj, dstObj) {
+    for (var property in srcObj) {
+        dstObj[property] = srcObj[property];
+    }
+};
+
+/** eコマース用インプレッション */
+var ecommerceExt_GA4 = Object.create(ecommerceExtCommon_GA4);
+var ecommerceList_GA4 = {
+    /* 商品表示回数送信タグ用 */
+    impressionTags: [],
+    /* 表示商品データ */
+    impressionDatasItems: [],
+
+    /* 商品の表示回数集計用のタグを出力 */
+    createImpression: function () {
+        var me = this,
+            count = 1,
+            list = location.pathname,
+            id = '',
+            title = '',
+            category1 = '',
+            category2 = '',
+            category3 = '',
+            category4 = '',
+            brand = '',
+            price = '',
+            variant = '',
+            price_text = '',
+            img_anchor = '',
+            cart_btn = '',
+            goods_link;
+        var data = {};
+
+        $ga4jq('.js-enhanced-ecommerce-item').each(function () {
+            goods_link = $ga4jq(this).find('.js-enhanced-ecommerce-goods-name');
+
+            id = '',
+                title = '',
+                category1 = '',
+                category2 = '',
+                category3 = '',
+                category4 = '',
+                brand = '',
+                price = '',
+                variant = '',
+                price_text = '',
+                img_anchor = '',
+                cart_btn = '';
+            /* href属性のURLに、「/g/」がない場合、以降の処理をスキップ */
+            if ($ga4jq(goods_link).attr('href') == undefined || !goods_link.attr('href').match(/\/g\//)) {
+                return true;
+            }
+
+            /* href属性から商品コードを抜出す */
+            id = goods_link.attr('href').substr(0, goods_link.attr('href').length - 1).split('/').pop();
+            id = id.substr(1, id.length - 1);
+
+            /* title属性から商品名を取得 */
+            title = goods_link.attr('title');
+
+            /* 商品コード、商品名いずれかでも取得出来ない場合、以降の処理をスキップ */
+            if (id == '' || title == '') {
+                return true;
+            }
+
+            /* category、brandを取得 */
+            category1 = (goods_link.data('category1') == undefined) ? '' : goods_link.data('category1'),
+                category2 = (goods_link.data('category2') == undefined) ? '' : goods_link.data('category2'),
+                category3 = (goods_link.data('category3') == undefined) ? '' : goods_link.data('category3'),
+                category4 = (goods_link.data('category4') == undefined) ? '' : goods_link.data('category4'),
+                brand = (goods_link.data('brand') == undefined) ? '' : goods_link.data('brand');
+
+            /* 「税込価格(￥、, 抜き)」部分のみを抜出す */
+            price_text = $ga4jq(this).find('.js-enhanced-ecommerce-goods-price').text();
+            if (price_text !== '') {
+                price = ecommerceExtCommon_GA4.formatPrice(price_text);
+            }
+
+            /* サイズ・カラーを取得 */
+            if ($ga4jq(this).find('.js-enhanced-ecommerce-variation-name').text() != '') {
+
+                if ($ga4jq(this).find('.js-enhanced-ecommerce-variation-name').length = 2) {
+                    /* カート画面用 */
+                    $ga4jq(this).find('.js-enhanced-ecommerce-variation-name').each(function () {
+                        /* サイズ、カラーに分かれている場合は間にスペースを入れる */
+                        if (variant.length > 0) {
+                            variant += '　';
+                        }
+                        variant += $ga4jq(this).text();
+
+                    });
+
+                } else {
+                    variant = $ga4jq(this).find('.js-enhanced-ecommerce-variation-name').text();
+                }
+
+                /* 取得したバリエーションの先頭が「(」でなければ、「（）」で囲む */
+                if (variant.trim().lastIndexOf('（', 0) !== 0) {
+                    variant = '（' + variant + '）';
+                }
+
+            }
+
+            /* 画像に設定された詳細リンク要素を取得する */
+            if ($ga4jq(this).find('.js-enhanced-ecommerce-image').attr('href') != undefined) {
+                img_anchor = $ga4jq(this).find('.js-enhanced-ecommerce-image');
+            }
+
+            /* 購入ボタン要素を取得 */
+            if ($ga4jq(this).find('.js-enhanced-ecommerce-add-cart').attr('href') != undefined) {
+                cart_btn = $ga4jq(this).find('.js-enhanced-ecommerce-add-cart').find('[class="btn_cart_"]');
+            }
+            /* 一覧（L） */
+            if ($ga4jq(this).find('.js-enhanced-ecommerce-add-cart').attr('action') != undefined) {
+                cart_btn = $ga4jq(this).find('.js-enhanced-ecommerce-add-cart').find('[class="btn_cart_"]');
+            }
+
+            /* 送信用タグを作成 */
+            var impressionData = {};
+            impressionData.item_id = id;
+            impressionData.item_name = ecommerceExtCommon_GA4.escapeJavaScriptValue(title);
+            impressionData.item_brand = brand;
+            impressionData.item_category = category1;
+            if (category1 != category2) {
+                impressionData.item_category2 = category2;
+                if (category2 != category3) {
+                    impressionData.item_category3 = category3;
+                    if (category3 != category4) {
+                        impressionData.item_category4 = category4;
+                    }
+                }
+            }
+            impressionData.item_variant = ecommerceExtCommon_GA4.escapeJavaScriptValue(variant);
+            impressionData.price = price;
+            impressionData.index = count;
+
+            if(count <= items_limit){
+                me.impressionDatasItems.push(impressionData);
+            }
+
+            data = {'id':id,'title': title,'category1': impressionData.item_category,'category2': impressionData.item_category2,'category3': impressionData.item_category3,'category4': impressionData.item_category4,'brand': brand,'price': price,'variant': variant,'position': count, 'qty': 1};
+            
+            /* 商品リンククリックイベント設定 */
+            $ga4jq(goods_link).on('click', { itemData: data }, ecommerceExtCommon_GA4.sendClickConversion);
+
+            /* 自身と画像リンクが同一要素ではない場合、画像リンクに商品リンククリックイベント設定 */
+            if ($ga4jq(goods_link).is(img_anchor) == false) {
+                $ga4jq(img_anchor).on('click', { itemData: data }, ecommerceExtCommon_GA4.sendClickConversion);
+            }
+
+            /* 商品のカート追加クリックイベント設定 */
+            $ga4jq(cart_btn).on('click', { itemData: data }, ecommerceExtCommon_GA4.addCartConversion);
+
+            /* キーボード操作イベントの設定 */
+            $ga4jq(cart_btn).on('keydown', function (event) {
+                if (event.keyCode === 13) {
+                    $ga4jq(this).unbind('keydown');
+                    /* ボタンクリックイベントの実行を設定 */
+                    $ga4jq(this).find(cart_btn).trigger('click');
+                }
+            });
+
+            count += 1;
+        });
+
+        /* 商品の表示回数集計用タグ出力 */
+        if (me.impressionDatasItems.length > 0) {
+            gtag('event', 'view_item_list', {
+                item_list_id: list,
+                items: me.impressionDatasItems,
+                'send_to': trackingcode
+            });
+        }
+    },
+
+    /* 商品のカート削除を送信 */
+    delCartConversion: function () {
+        $ga4jq(document).on('click', '.js-enhanced-ecommerce-del-cart', function (event) {
+
+            var base_dom = $ga4jq(this).parents('.js-enhanced-ecommerce-jscart-item');
+            var goods_link = $ga4jq(base_dom).find('.js-enhanced-ecommerce-goods-name');
+
+            var id = '',
+                title = '',
+                category1 = '',
+                category2 = '',
+                category3 = '',
+                category4 = '',
+                brand = '',
+                price = '',
+                variant = '',
+                price_text = '';
+
+            /* href属性のURLに、「/g/」がない場合、以降の処理をスキップ */
+            if ($ga4jq(goods_link).attr('href') == undefined || !goods_link.attr('href').match(/\/g\//)) {
+                return true;
+            }
+
+            /* href属性から商品コードを抜出す */
+            id = goods_link.attr('href').substr(0, goods_link.attr('href').length - 1).split('/').pop();
+            id = id.substr(1, id.length - 1);
+
+            /* title属性から商品名を取得 */
+            title = goods_link.attr('title');
+
+            /* 商品コード、商品名いずれかでも取得出来ない場合、以降の処理をスキップ */
+            if (id == '' || title == '') {
+                return true;
+            }
+
+            /* category、brandを取得 */
+            category1 = (goods_link.data('category1') == undefined) ? '' : goods_link.data('category1'),
+                category2 = (goods_link.data('category2') == undefined) ? '' : goods_link.data('category2'),
+                category3 = (goods_link.data('category3') == undefined) ? '' : goods_link.data('category3'),
+                category4 = (goods_link.data('category4') == undefined) ? '' : goods_link.data('category4'),
+                brand = (goods_link.data('brand') == undefined) ? '' : goods_link.data('brand');
+
+            /* 「税込価格(￥、, 抜き)」部分のみを抜出す */
+            price_text = $ga4jq(base_dom).find('.js-enhanced-ecommerce-goods-price').text();
+            if (price_text !== '') {
+                price = ecommerceExtCommon_GA4.formatPrice(price_text);
+            }
+
+            /* サイズ・カラーを取得 */
+            if ($ga4jq(base_dom).find('.js-enhanced-ecommerce-variation-name').text() != '') {
+                variant = $ga4jq(base_dom).find('.js-enhanced-ecommerce-variation-name').text();
+            }
+
+            /* カテゴリデータの重複排除 */
+            if(category3 == category4){
+                category4 = '';
+                if(category2 == category3){
+                    category3 = '';
+                    if(category1 == category2){
+                        category2 = '';
+                    }
+                }
+            }
+
+            /* 送信用データ配列作成 */
+            var itemData = { 'id': id, 'title': title, 'category1': category1, 'category2': category2, 'category3': category3, 'category4': category4, 'brand': brand, 'price': price, 'variant': variant };
+
+            /* 送信処理 */
+            ecommerceExtCommon_GA4.sendDelCartConversion(itemData);
+
+        });
+    }
+};
+
+ecommerceExtCommon_GA4.LoadJquery = {
+    load: function (callback) {
+        if (typeof jQuery != 'undefined') {
+            callback();
+            return;
+        }
+        var script = document.createElement('script');
+        script.setAttribute('src', 'https://code.jquery.com/jquery-3.0.0.min.js');
+        script.setAttribute('type', 'text/javascript');
+        document.getElementsByTagName('head')[0].appendChild(script);
+        script.onload = function () {
+            callback();
+        };
+    }
+};
+
+ecommerceExt_GA4.mixin_obj(ecommerceList_GA4, ecommerceExt_GA4);
+ecommerceExt_GA4.conversionInit = function () {
+    ecommerceExt_GA4.createImpression();
+    ecommerceExt_GA4.delCartConversion();
+};
+ecommerceExt_GA4.LoadJquery.load(ecommerceExt_GA4.conversionInit);
+
+/** eコマース用チェックアウト初期化 */
+ecommerceExt_GA4.checkoutConversionInit = function () {
+    ecommerceExt_GA4.checkoutConversion();
+};
+ecommerceExt_GA4.LoadJquery.load(ecommerceExt_GA4.checkoutConversionInit);
+
+/** eコマース用カート内操作 */
+/* 削除ボタン押下処理 */
+$ga4jq("input[name^=del]").on('click', function (event) {
+    var id = '',
+        title = '';
+
+    var base_dom = $ga4jq(this).parents('.js-enhanced-ecommerce-cart-item');
+    var goods_link = $ga4jq(base_dom).find('.js-enhanced-ecommerce-goods-name');
+
+    /* href属性から商品コードを抜出す */
+    id = goods_link.attr('href').substr(0, goods_link.attr('href').length - 1).split('/').pop();
+    id = id.substr(1, id.length - 1);
+
+    /* title属性から商品名を取得 */
+    title = goods_link.attr('title');
+
+    /* 商品コード、商品名いずれかでも取得出来ない場合、以降の処理をスキップ */
+    if (id === '' || title === '') {
+        return true;
+    }
+
+    var price_text = $ga4jq(base_dom).find('.js-enhanced-ecommerce-goods-price').text(),
+        category1 = (goods_link.data('category1') == undefined) ? '' : goods_link.data('category1'),
+        category2 = (goods_link.data('category2') == undefined) ? '' : goods_link.data('category2'),
+        category3 = (goods_link.data('category3') == undefined) ? '' : goods_link.data('category3'),
+        category4 = (goods_link.data('category4') == undefined) ? '' : goods_link.data('category4'),
+        brand = (goods_link.data('brand') == undefined) ? '' : goods_link.data('brand'),
+        variant = $ga4jq(base_dom).find('.js-enhanced-ecommerce-variation-name').text();
+
+    if (price_text !== '') {
+        price = ecommerceExtCommon_GA4.formatPrice(price_text);
+    }
+
+    /* カテゴリデータの重複排除 */
+    if(category3 == category4){
+        category4 = '';
+        if(category2 == category3){
+            category3 = '';
+            if(category1 == category2){
+                category2 = '';
+            }
+        }
+    }
+
+    /* 送信処理 */
+    var itemData = { 'id': id, 'title': title, 'category1': category1, 'category2': category2, 'category3': category3, 'category4': category4, 'brand': brand, 'price': price, 'variant': variant };
+
+    ecommerceExt_GA4.sendDelCartConversion(itemData);
+
+});
+
+/* eコマース商品詳細表示 */
+(function () {
+    /* 商品情報を取得 */
+    if ($ga4jq('div').hasClass('js-enhanced-ecommerce-item-detail')) {
+        var price_text = $ga4jq('.goodsspec_ .js-enhanced-ecommerce-goods-price').first().text();
+        var price = '';
+        if (price_text !== '') {
+            price = ecommerceExtCommon_GA4.formatPrice(price_text);
+        }
+
+        var itemDetail = {
+            "goods": $ga4jq('.goodsspec_ .js-enhanced-ecommerce-goods').first().text(),
+            "name": $ga4jq('.goodsspec_ .js-enhanced-ecommerce-goods-name').first().text(),
+            "variation_name1": $ga4jq('.js-enhanced-ecommerce-variation-name1').first().text(),
+            "variation_name2": $ga4jq('.js-enhanced-ecommerce-variation-name2').first().text(),
+            "price": price,
+            "item_category": ($ga4jq('.js-enhanced-ecommerce-goods-name').data('category1') == undefined) ? '' : $ga4jq('.js-enhanced-ecommerce-goods-name').data('category1'),
+            "item_category2": ($ga4jq('.js-enhanced-ecommerce-goods-name').data('category2') == undefined) ? '' : $ga4jq('.js-enhanced-ecommerce-goods-name').data('category2'),
+            "item_category3": ($ga4jq('.js-enhanced-ecommerce-goods-name').data('category3') == undefined) ? '' : $ga4jq('.js-enhanced-ecommerce-goods-name').data('category3'),
+            "item_category4": ($ga4jq('.js-enhanced-ecommerce-goods-name').data('category4') == undefined) ? '' : $ga4jq('.js-enhanced-ecommerce-goods-name').data('category4'),
+            "item_brand": ($ga4jq('.js-enhanced-ecommerce-goods-name').data('brand') == undefined) ? '' : $ga4jq('.js-enhanced-ecommerce-goods-name').data('brand')
+        };
+
+        /* バリエーション取得 */
+        var variant = ecommerceExt_GA4.formatVariant(itemDetail['variation_name1'], itemDetail['variation_name2']);
+        var categoryVal1 = ecommerceExtCommon_GA4.escapeJavaScriptValue(itemDetail['item_category']);
+        var categoryVal2 = '';
+        var categoryVal3 = '';
+        var categoryVal4 = '';
+
+        if (itemDetail['item_category'] != itemDetail['item_category2']) {
+            categoryVal2 = ecommerceExtCommon_GA4.escapeJavaScriptValue(itemDetail['item_category2']);
+            if (itemDetail['item_category2'] != itemDetail['item_category3']) {
+                categoryVal3 = ecommerceExtCommon_GA4.escapeJavaScriptValue(itemDetail['item_category3']);
+                if (itemDetail['item_category3'] != itemDetail['item_category4']) {
+                    categoryVal4 = ecommerceExtCommon_GA4.escapeJavaScriptValue(itemDetail['item_category4']);
+                }
+            }
+        }
+        /* 商品閲覧集計の送信 */
+        gtag('event', 'view_item', {
+            'currency': GA4Currency,
+            'value': itemDetail['price'],
+            'items': [{
+                'currency': GA4Currency,
+                'item_id': itemDetail['goods'],
+                'item_name': itemDetail['name'],
+                'item_category': categoryVal1,
+                'item_category2': categoryVal2,
+                'item_category3': categoryVal3,
+                'item_category4': categoryVal4,
+                'item_brand': itemDetail['item_brand'],
+                'item_variant': variant,
+                'price': itemDetail['price'],
+                'location_id': 'detail'
+            }],
+            'send_to': trackingcode
+        });
+
+        /* 買い物かごに入れるボタン押下処理 */
+        $ga4jq('.js-enhanced-ecommerce-add-cart-detail').on('click', function (event) {
+            var id = itemDetail['goods'],
+                title = itemDetail['name'],
+                variantArray = new Array();
+
+            /* 通常表示時のバリエーションセレクトボックス */
+            var domSelectbox = $ga4jq(this).parents('form').find('select[name=goods]:not(#variation_arrival_notice_select)');
+
+            /* セレクトボックスのvalueが取得できなければ元の値を送信 */
+            if (domSelectbox.val() !== undefined && domSelectbox.val() !== '') {
+                /* 選択されたvalue値とテキスト配列を取得 */
+                id = domSelectbox.val();
+                variantArray = domSelectbox.children('option:selected').text().split('/');
+                /* 取得したテキスト配列から末尾の在庫部分を削除 */
+                variantArray.pop();
+
+                /* 配列を逆順でループしてバリエーション整形 */
+                variant = '（';
+                for (var i = variantArray.length - 1; i > -1; i--) {
+                    if (i !== variantArray.length - 1) {
+                        variant = variant + '　';
+                    }
+
+                    variant = variant + variantArray[i];
+                }
+                variant = variant + '）';
+
+                /* 商品名に全角スペースを/に置換したバリエーションを連結 */
+                title = title + variant.replace('　', '/');
+            }
+            /* 送信用データ配列作成 */
+            var itemData = { 'id': id, 'title': title, 'category1': categoryVal1, 'category2': categoryVal2, 'category3': categoryVal3, 'category4': categoryVal4, 'price': itemDetail['price'], 'brand': itemDetail['item_brand'], 'variant': variant, 'qty': 1, 'position': '' };
+
+            /* カートの追加送信 */
+            ecommerceExt_GA4.sendAddCartConversion(itemData);
+
+        });
+
+        $ga4jq('.js-enhanced-ecommerce-goods-bookmark').on('click', function (event) {
+
+            var id = itemDetail['goods'],
+                title = itemDetail['name'],
+                variantArray = new Array();
+
+            /* 通常表示時のバリエーションセレクトボックス */
+            var domSelectbox = $ga4jq(this).parents('form').find('select[name=goods]:not(#variation_arrival_notice_select)');
+
+            /* セレクトボックスのvalueが取得できなければ元の値を送信 */
+            if (domSelectbox.val() !== undefined && domSelectbox.val() !== '') {
+                /* 選択されたvalue値とテキスト配列を取得 */
+                id = domSelectbox.val();
+                variantArray = domSelectbox.children('option:selected').text().split('/');
+                /* 取得したテキスト配列から末尾の在庫部分を削除 */
+                variantArray.pop();
+
+                /* 配列を逆順でループしてバリエーション整形 */
+                variant = '（';
+                for (var i = variantArray.length - 1; i > -1; i--) {
+                    if (i !== variantArray.length - 1) {
+                        variant = variant + '　';
+                    }
+
+                    variant = variant + variantArray[i];
+                }
+                variant = variant + '）';
+
+                /* 商品名に全角スペースを/に置換したバリエーションを連結 */
+                title = title + variant.replace('　', '/');
+            }
+            /* 送信用データ配列作成 */
+            var itemData = { 'id': id, 'title': title, 'category1': categoryVal1, 'category2': categoryVal2, 'category3': categoryVal3, 'category4': categoryVal4, 'price': itemDetail['price'], 'brand': itemDetail['item_brand'], 'variant': variant, 'qty': 1, 'position': '' };
+
+            /* お気に入りの追加送信 */
+            ecommerceExt_GA4.sendBookmarkConversion(itemData);
+
+        });
+    }
+}());
+

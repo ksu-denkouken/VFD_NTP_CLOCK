@@ -1,0 +1,11 @@
+jQuery('div.etc_goodsimg_item_ a img')
+	.mouseover(function(){
+		var onSrc = jQuery(this).attr('src');
+		jQuery('img.src_l_').attr('src', onSrc);
+		// Å°Å°Å°
+		$('#gallery div.img_L_ a.info').attr('href', onSrc)
+	});
+
+function imgL_change(path){
+	jQuery('img.src_l_').attr('src', path);
+}

@@ -1,0 +1,21 @@
+var ecblib = ecblib || {};
+ecblib.cookie_policy = ecblib.cookie_policy || {};
+
+(function () {
+    var _cookie_policy = ecblib.cookie_policy;
+    
+    jQuery.noConflict();
+    jQuery("#consentButton").click(function () {
+        jQuery("#cookieBox").hide();
+        jQuery.cookie("cookieconsent", "0", {
+            expires: 365,
+            path: "/",
+            secure: true
+        });
+    });
+    if (jQuery.cookie("cookieconsent") != "0") {
+      jQuery("#cookieBox").show();
+    }else{
+      jQuery("#cookieBox").hide();  
+    }
+}());
